@@ -1,30 +1,25 @@
 module Syntax where
-import System.Process (CreateProcess(env))
+
 
 -- Context Free Grammar
 
 {-
 
-<program>    ::= <stmt_list>
+<program>    ::= "init_arena" <num> <num> <decl_list> "robot" <pos> <num> <num> <stmt_list>
+<decl_list>  ::= <decl> | <decl> <decl_list>
+<decl>       ::= "place" "(" <num> "," <num> ")" <string>
 <stmt_list>  ::= <stmt> | <stmt> "\n" <stmt_list>
-
-<stmt>       ::= "init_arena" <number> <number>
-               | "move" <number>
-               | "turn" <angle>
-               | "grab"
-               | "check_status"
-
-<angle>      ::= "90" | "180" | "270" | "0"
-<number>     ::= <digit>+ [ "." <digit>+ ]
-<digit>      ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-
+<stmt>       ::= "move" <num> | "turn" <num> | "grab" | "check_status" 
+               | "update_capacity" <num> | "display_arena" | "display_robot"
 -}
+
+
 type Position = (Double, Double)
 data Arena = Arena {
     width :: Double,
     height :: Double,
     items  :: [(Position, String)]  -- List of items with their positions
-} deriving(Eq)
+} deriving(Eq, Show )
 
 data RobotState = RobotState {
 
@@ -40,7 +35,7 @@ data RobotState = RobotState {
 data Env = Env {
     robot :: RobotState,
     arena :: Arena
-} deriving(Eq)
+} deriving(Eq,Show)
 -- initialEnv = Env
 --     {
 --         robot = RobotState {
