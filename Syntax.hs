@@ -1,126 +1,161 @@
 module Syntax where
-import System.Process (CreateProcess(env))
 
--- Context Free Grammar
+import Data.List (intercalate)
 
 {-
 
-<program>    ::= <stmt_list>
-<stmt_list>  ::= <stmt> | <stmt> "\n" <stmt_list>
+CONTEXT FREE GRAMMAR — RoboArena
 
-<stmt>       ::= "init_arena" <number> <number>
-               | "move" <number>
+<program>    ::= <init_arena> <decl_list> <init_robot> <stmt_list>
+
+<init_arena> ::= "init_arena" <number> <number>
+
+<decl_list>  ::= <decl> | <decl> "\n" <decl_list>
+<decl>       ::= "place" "(" <number> "," <number> ")" <string>
+
+<init_robot> ::= "robot" "(" <number> "," <number> ")" <number> <number>
+
+<stmt_list>  ::= <stmt> | <stmt> "\n" <stmt_list>
+<stmt>       ::= "move" <number>
                | "turn" <angle>
                | "grab"
                | "check_status"
+               | "update_capacity" <number>
+               | "if_collected" <string> "{" <stmt_list> "}" "{" <stmt_list> "}"
+               | "display_arena"
+               | "display_robot"
 
-<angle>      ::= "90" | "180" | "270" | "0"
+<angle>      ::= "0" | "90" | "180" | "270"
 <number>     ::= <digit>+ [ "." <digit>+ ]
 <digit>      ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+<string>     ::= a sequence of characters
 
 -}
+
 type Position = (Double, Double)
-data Arena = Arena {
-    width :: Double,
-    height :: Double,
-    items  :: [(Position, String)]  -- List of items with their positions
-} deriving(Eq)
 
-data RobotState = RobotState {
+data Arena = Arena
+    { width  :: Double
+    , height :: Double
+    , items  :: [(Position, String)]
+    } deriving (Eq)
 
-    xPos :: Double,
-    yPos :: Double,
-    heading :: Double,
-    capacity :: Int,
-    collections :: [String],  -- List of collected items
-    isalive :: Bool
-} deriving(Eq)
+data RobotState = RobotState
+    { xPos        :: Double
+    , yPos        :: Double
+    , heading     :: Double
+    , capacity    :: Int
+    , collections :: [String]
+    , isAlive     :: Bool
+    } deriving (Eq)
 
--- type Env = RobotState
-data Env = Env {
-    robot :: RobotState,
-    arena :: Arena
-} deriving(Eq)
--- initialEnv = Env
---     {
---         robot = RobotState {
---             xPos = 0.0,
---             yPos = 0.0,
---             heading = 0.0,
---             capacity = 0,
---             collections = [],
---             isalive = False
---         },
---         arena = Arena {
---             width = 0.0,
---             height = 0.0,
---             items = []
---         }
---     }
+data Env = Env
+    { robot :: RobotState
+    , arena :: Arena
+    } deriving (Eq)
 
 data Program = Program InitArena [Decl] InitRobot [Stmt]
-data InitArena = InitArena Double Double 
-data InitRobot = Robot Position Double Int     -- Command to set robot's initial position, heading and capacity
-data Decl =  Place Position String     -- Command to place an item at a position
--- 2. The Abstract Syntax (Statements)
--- Each constructor is a command the robot can execute.
+
+data InitArena = InitArena Double Double
+
+data InitRobot = Robot Position Double Int
+
+data Decl = Place Position String
+
 data Stmt
-    = Move Double             -- Command to move distance
-    | Turn Double             -- Command to turn degrees
-    | Grab                    -- Interaction command
-    | CheckStatus             
-    | UpdateCapity Int
-    | IfCollected String [Stmt] [Stmt]  -- Conditional based on collected items
+    = Move Double
+    | Turn Double
+    | Grab
+    | CheckStatus
+    | UpdateCapacity Int
+    | IfCollected String [Stmt] [Stmt]
     | DisplayArena
     | DisplayRobot
     deriving (Eq)
 
+data BoundsResult = InBounds | OutOfBounds String
+    deriving (Eq)
 
-evaluate :: Program -> Env
-evaluate (Program initA decl initRobot stmts) = let env' = evaluateD decl (Env robot arena)
-                                                    in evaluateSS stmts env'
-    where
-    initialize :: InitArena -> Arena
-    initialize (InitArena w h) = Arena w h []
+data CollectionResult = AllCollected | ItemsRemaining [String]
+    deriving (Eq)
 
-    arena = initialize initA
+instance Show InitArena where
+    show (InitArena w h) = "init_arena " ++ show w ++ " " ++ show h
 
-    robotC :: InitRobot -> RobotState
-    robotC (Robot (x, y) h c) = RobotState x y h c [] True
+instance Show InitRobot where
+    show (Robot (x, y) h c) =
+        "robot (" ++ show x ++ ", " ++ show y ++ ") " ++ show h ++ " " ++ show c
 
-    robot = robotC initRobot
-
-
-evaluateD :: [Decl] -> Env -> Env
-evaluateD [] env = env
-evaluateD ((Place (x, y) s) : decls) env = undefined
-
-evaluateSS :: [Stmt] -> Env -> Env
-evaluateSS ss env = env
-
-
-
+instance Show Decl where
+    show (Place (x, y) name) =
+        "place (" ++ show x ++ ", " ++ show y ++ ") " ++ "\"" ++ name ++ "\""
 
 instance Show Stmt where
-    show (InitArena w h) = "init_arena " ++ show w ++ " " ++ show h
     show (Move d)        = "move " ++ show d
     show (Turn a)        = "turn " ++ show a
     show Grab            = "grab"
     show CheckStatus     = "check_status"
+    show (UpdateCapacity n) = "update_capacity " ++ show n
+    show (IfCollected item thenBranch elseBranch) =
+        "if_collected \"" ++ item ++ "\" { "
+        ++ showStmtList thenBranch ++ " } { "
+        ++ showStmtList elseBranch ++ " }"
+    show DisplayArena    = "display_arena"
+    show DisplayRobot    = "display_robot"
+
+showStmtList :: [Stmt] -> String
+showStmtList stmts = intercalate "; " (map show stmts)
+
+instance Show Arena where
+    show a = "--- ARENA ---\n"
+        ++ "Size    : " ++ show (width a) ++ " x " ++ show (height a) ++ "\n"
+        ++ "Items   : " ++ showItems (items a) ++ "\n"
+        ++ "-------------"
+
+showItems :: [(Position, String)] -> String
+showItems [] = "none"
+showItems itms = intercalate ", " (map showOneItem itms)
+  where
+    showOneItem ((x, y), name) = name ++ " at (" ++ show x ++ ", " ++ show y ++ ")"
 
 instance Show RobotState where
-    show s = "--- ROBOT STATUS ---\n" ++
-             "Position : (" ++ show (xPos s) ++ ", " ++ show (yPos s) ++ ")\n" ++
-             "Heading  : " ++ show (heading s) ++ " degrees\n" ++
-             "Arena    : " ++ show (arenaWidth s) ++ "x" ++ show (arenaHeight s) ++ "\n" ++
-             "Status   : " ++ (if isalive s then "FUNCTIONAL" else "CRASHED") ++
-             "\n--------------------"
+    show s = "--- ROBOT ---\n"
+        ++ "Position    : (" ++ show (xPos s) ++ ", " ++ show (yPos s) ++ ")\n"
+        ++ "Heading     : " ++ show (heading s) ++ " degrees\n"
+        ++ "Capacity    : " ++ show (capacity s) ++ "\n"
+        ++ "Collected   : " ++ showCollections (collections s) ++ "\n"
+        ++ "Status      : " ++ (if isAlive s then "FUNCTIONAL" else "CRASHED") ++ "\n"
+        ++ "-------------"
+      where
+        showCollections [] = "none"
+        showCollections cs = intercalate ", " cs
 
--- 3. The Program
--- A program is a functional sequence of these statements.
-type Program = [Stmt]
+instance Show Env where
+    show e = show (arena e) ++ "\n" ++ show (robot e)
 
--- 4. Helper for the check-off
-printProg :: Program -> String
-printProg = unlines . map show
+instance Show Program where
+    show (Program initA decls initR stmts) =
+        show initA ++ "\n"
+        ++ showDecls decls
+        ++ show initR ++ "\n"
+        ++ showStmts stmts
+      where
+        showDecls [] = ""
+        showDecls ds = unlines (map show ds)
+        showStmts [] = ""
+        showStmts ss = unlines (map show ss)
 
+instance Show BoundsResult where
+    show InBounds = "PASS — Robot is within arena bounds"
+    show (OutOfBounds msg) = "FAIL — " ++ msg
+
+instance Show CollectionResult where
+    show AllCollected = "PASS — All items collected"
+    show (ItemsRemaining remaining) =
+        "INCOMPLETE — Items still in arena: " ++ intercalate ", " remaining
+
+printProgram :: Program -> String
+printProgram = show
+
+printEnv :: Env -> String
+printEnv = show
