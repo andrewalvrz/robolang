@@ -4,7 +4,7 @@ import Data.List (intercalate)
 
 {-
 
-CONTEXT FREE GRAMMAR — RoboArena
+CONTEXT FREE GRAMMAR — 
 
 <program>    ::= <init_arena> <decl_list> <init_robot> <stmt_list>
 
